@@ -1,16 +1,20 @@
-# 원본 데이터 제외
+# 원본 데이터 (README의 Zenodo 링크에서 받기)
 data/
+*.zip
+*.png
+*.jpg
 
-# 학습된 모델 파일 제외
+# 학습된 모델 파일, 체크포인트 (Drive에 보관)
 *.pth
 *.pt
+*.ckpt
 *.keras
 *.h5
+checkpoints/
+outputs/
 
-# Python 캐시 파일 제외
+# Python 캐시, 노트북 잔여물
 __pycache__/
 *.pyc
-
-# 실험 결과 및 임시 파일
 .ipynb_checkpoints/
 .DS_Store
