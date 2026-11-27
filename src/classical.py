@@ -1,38 +1,38 @@
-# Canny 엣지 검출 및 타원 피팅을 이용한 고전 영상처리
 
 import cv2
 import numpy as np
 
 
-def detect_edges(img, threshold1=30, threshold2=100):
-    edges = cv2.Canny(
-        img,
-        threshold1,
-        threshold2
-    )
-    return edges
+# Final hyperparameters
+IMG_SIZE = (256, 256)
+CANNY_LOW = 30
+CANNY_HIGH = 100
+KERNEL_SIZE = 3
+MIN_AREA = 152
 
 
+# 1. Edge detection
+def detect_edges(img, threshold1=CANNY_LOW,
+                 threshold2=CANNY_HIGH):
+
+    return cv2.Canny(img, threshold1, threshold2)
+
+
+# 2. Morphological closing
 def apply_morphology(edges):
-    """
-    Morphology 연산으로 끊어진 경계 연결
-    """
 
-    kernel = np.ones((5, 5), np.uint8)
-
-    closed = cv2.morphologyEx(
-        edges,
-        cv2.MORPH_CLOSE,
-        kernel
+    kernel = np.ones(
+        (KERNEL_SIZE, KERNEL_SIZE),
+        np.uint8
     )
 
-    return closed
+    return cv2.morphologyEx(
+        edges, cv2.MORPH_CLOSE, kernel
+    )
 
 
+# 3. Contour extraction
 def find_contours(edges):
-    """
-    이미지에서 외곽선 추출
-    """
 
     contours, hierarchy = cv2.findContours(
         edges,
@@ -43,122 +43,145 @@ def find_contours(edges):
     return contours
 
 
+# 4. Head contour selection
 def select_head_contour(contours):
-    """
-    태아 머리 윤곽선 후보 선택
-    """
 
     candidates = []
 
     for contour in contours:
 
-        # 타원 피팅에는 최소 5개의 점이 필요
         if len(contour) < 5:
             continue
 
         area = cv2.contourArea(contour)
 
-        # 너무 작은 윤곽선은 제외
-        if area < 1000:
+        if area < MIN_AREA:
             continue
 
         candidates.append(contour)
 
-    # 후보가 없으면 None 반환
     if not candidates:
         return None
 
-    # 면적이 가장 큰 윤곽선 선택
-    best_contour = max(
-        candidates,
-        key=cv2.contourArea
-    )
-
-    return best_contour
+    return max(candidates, key=cv2.contourArea)
 
 
+# 5. Ellipse fitting
 def fit_head_ellipse(contour):
-    """
-    태아 머리 윤곽선에 타원 피팅
-    """
 
     if contour is None or len(contour) < 5:
         return None
 
-    ellipse = cv2.fitEllipse(contour)
-
-    return ellipse
+    return cv2.fitEllipse(contour)
 
 
+# 6. Ellipse mask generation
+def create_ellipse_mask(img_shape, ellipse):
+
+    mask = np.zeros(
+        img_shape[:2],
+        dtype=np.uint8
+    )
+
+    if ellipse is not None:
+        cv2.ellipse(
+            mask, ellipse, 1, thickness=-1
+        )
+
+    return mask
+
+
+# 7. Head ellipse prediction
+def predict_ellipse(img):
+
+    edges = detect_edges(img)
+
+    processed = apply_morphology(edges)
+
+    contours = find_contours(processed)
+
+    contour = select_head_contour(contours)
+
+    return fit_head_ellipse(contour)
+
+
+# 8. Head circumference in pixels
 def calculate_hc(ellipse):
-    """
-    타원의 둘레 계산 (픽셀 단위)
-    Ramanujan 근사 공식 사용
-    """
 
     if ellipse is None:
         return None
 
-    # 타원의 가로, 세로 지름
     width, height = ellipse[1]
 
-    # 반장축과 반단축
     a = width / 2
     b = height / 2
 
-    # Ramanujan 타원 둘레 근사 공식
-    hc = np.pi * (
+    return np.pi * (
         3 * (a + b)
-        - np.sqrt((3 * a + b) * (a + 3 * b))
+        - np.sqrt((3*a + b) * (a + 3*b))
     )
 
-    return hc
 
+# 9. Head circumference in millimeters
+def predict_hc(img, pixel_size, original_shape):
 
-
-def predict(img):
-    """
-    초음파 이미지에서 태아 머리 영역을 검출하고
-    0/1 마스크를 반환
-    """
-
-    # 1. Canny 엣지 검출
-    edges = detect_edges(img)
-
-    # 2. Morphology 연산
-    processed = apply_morphology(edges)
-
-    # 3. 윤곽선 추출
-    contours = find_contours(processed)
-
-    # 4. 태아 머리 윤곽선 선택
-    contour = select_head_contour(contours)
-
-    # 5. 타원 피팅
-    ellipse = fit_head_ellipse(contour)
-
-    # 6. 타원 마스크 생성
-    mask = create_ellipse_mask(img.shape, ellipse)
-
-    return mask
-
-
-
-def create_ellipse_mask(img_shape, ellipse):
-    """
-    타원 정보를 이용해 0/1 마스크 생성
-    """
+    ellipse = predict_ellipse(img)
 
     if ellipse is None:
-        return np.zeros(img_shape, dtype=np.uint8)
+        return np.nan
 
-    mask = np.zeros(img_shape, dtype=np.uint8)
+    (cx, cy), (width, height), angle = ellipse
 
-    cv2.ellipse(
-        mask,
-        ellipse,
-        1,
-        thickness=-1
+    if not np.all(np.isfinite([
+        cx, cy, width, height, angle
+    ])):
+        return np.nan
+
+    if width <= 0 or height <= 0:
+        return np.nan
+
+    original_h, original_w = original_shape[:2]
+
+    scale_x = original_w / img.shape[1]
+    scale_y = original_h / img.shape[0]
+
+    theta = np.deg2rad(angle)
+
+    rotation = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta), np.cos(theta)]
+    ])
+
+    axes = np.diag([
+        width / 2,
+        height / 2
+    ])
+
+    scale = np.diag([
+        scale_x,
+        scale_y
+    ])
+
+    transform = scale @ rotation @ axes
+
+    a, b = np.linalg.svd(
+        transform,
+        compute_uv=False
     )
 
-    return mask
+    hc_pixel = np.pi * (
+        3 * (a + b)
+        - np.sqrt((3*a + b) * (a + 3*b))
+    )
+
+    return hc_pixel * pixel_size
+
+
+# 10. Final segmentation prediction
+def predict(img):
+
+    ellipse = predict_ellipse(img)
+
+    return create_ellipse_mask(
+        img.shape, ellipse
+    )
