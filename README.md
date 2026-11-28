@@ -16,8 +16,6 @@ HC18 태아 머리 초음파 데이터셋을 이용하여 태아 머리 영역�
 
 ## 3. Methods
 
-## 3. Methods
-
 본 프로젝트에서는 다음 세 가지 방법을 비교합니다.
 
 1. Classical Image Processing
