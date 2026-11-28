@@ -16,6 +16,8 @@ HC18 태아 머리 초음파 데이터셋을 이용하여 태아 머리 영역�
 
 ## 3. Methods
 
+## 3. Methods
+
 본 프로젝트에서는 다음 세 가지 방법을 비교합니다.
 
 1. Classical Image Processing
@@ -24,17 +26,22 @@ HC18 태아 머리 초음파 데이터셋을 이용하여 태아 머리 영역�
 
 2. U-Net
    - U-Net 기반 태아 머리 영역 분할
+   - ResNet34 Encoder 적용
+   - Attention U-Net 추가 구현
+   - Attention Gate를 활용한 특징 영역 집중
 
 3. FCN
    - FCN 기반 태아 머리 영역 분할
 
 ## 4. Data Split
 
-데이터셋은 다음과 같이 분할할 계획입니다.
+데이터셋은 환자 단위로 분할하여 데이터 누수를 방지합니다.
 
-- Train: 70%
-- Validation: 15%
-- Test: 15%
+- Train / Validation: 5-Fold 교차검증
+- Test: 최종 성능 평가용으로 별도 보관
+
+각 Fold는 학습 데이터와 검증 데이터로 구성하며,
+5개 Fold의 검증 결과를 종합하여 평균 성능을 계산합니다.
 
 데이터 분할 목록은 `splits/` 폴더의 CSV 파일로 관리합니다.
 
@@ -65,12 +72,15 @@ fetal-head-segmentation/
 ├── .gitignore
 ├── requirements.txt
 ├── splits/
-│   ├── train.csv
-│   ├── val.csv
-│   └── test.csv
+│   └── folds.csv
 ├── src/
+│   ├── config.py
 │   ├── data.py
+│   ├── dataset.py
+│   ├── augment.py
 │   ├── metrics.py
+│   ├── models.py
+│   ├── train.py
 │   ├── classical.py
 │   ├── unet.py
 │   └── fcn.py
