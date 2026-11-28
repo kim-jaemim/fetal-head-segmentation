@@ -68,7 +68,6 @@ import config
 import models
 import train
 
-from data import load_fold
 from metrics import count_params
 
 
