@@ -10,7 +10,8 @@ HC18 태아 머리 초음파 데이터셋을 이용하여 태아 머리 영역�
 
 - Dataset: HC18
 - Download: https://zenodo.org/records/1327317
-- Training images: 999
+- Training images: 853
+- Test images: 146
 
 원본 데이터셋은 GitHub에 업로드하지 않으며, 제공된 링크에서 다운로드합니다.
 
